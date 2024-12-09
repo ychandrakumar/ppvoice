@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, addDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { setDoc } from 'firebase/firestore';
+
 const firebaseConfig = {
   apiKey: "AIzaSyAMdzPP6YZPwxVYlyIXJmn8Bpv1boEK4zY",
   authDomain: "tictactoe-79830.firebaseapp.com",
@@ -38,6 +39,13 @@ const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
 const hangupButton = document.getElementById('hangupButton');
+
+// Mute buttons
+const muteButton = document.getElementById('muteButton'); // Mute local microphone
+const muteRemoteButton = document.getElementById('muteRemoteButton'); // Mute incoming audio
+
+let isLocalMuted = false; // Track local mute state
+let isRemoteMuted = false; // Track remote mute state
 
 // 1. Setup media sources
 webcamButton.onclick = async () => {
@@ -149,4 +157,22 @@ answerButton.onclick = async () => {
       }
     });
   });
+};
+
+// 4. Mute Local Audio (Microphone)
+muteButton.onclick = () => {
+  isLocalMuted = !isLocalMuted;
+  localStream.getAudioTracks().forEach((track) => {
+    track.enabled = !isLocalMuted; // Mute/unmute the local track
+  });
+  muteButton.textContent = isLocalMuted ? 'Unmute Microphone' : 'Mute Microphone'; // Update button text
+};
+
+// 5. Mute Remote Audio (Incoming Audio)
+muteRemoteButton.onclick = () => {
+  isRemoteMuted = !isRemoteMuted;
+  remoteStream.getAudioTracks().forEach((track) => {
+    track.enabled = !isRemoteMuted; // Mute/unmute the remote track
+  });
+  muteRemoteButton.textContent = isRemoteMuted ? 'Unmute Remote Audio' : 'Mute Remote Audio'; // Update button text
 };
