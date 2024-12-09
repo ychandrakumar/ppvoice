@@ -37,6 +37,9 @@ const callButton = document.getElementById('callButton');
 const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
 const hangupButton = document.getElementById('hangupButton');
+const muteButton = document.getElementById('muteButton'); // Mute button for the user
+const muteRemoteButton = document.getElementById('muteRemoteButton'); // Mute button for remote user
+const statusMessage = document.getElementById('statusMessage'); // Element for status message
 
 // 1. Setup media sources (audio only)
 webcamButton.onclick = async () => {
@@ -149,4 +152,51 @@ answerButton.onclick = async () => {
       }
     });
   });
+};
+
+// 4. Mute the local microphone
+muteButton.onclick = () => {
+  // Toggle the enabled state of the audio track
+  localStream.getAudioTracks().forEach(track => {
+    track.enabled = !track.enabled;
+  });
+
+  // Change the button text to reflect the mute state
+  if (localStream.getAudioTracks()[0].enabled) {
+    muteButton.textContent = "Mute Microphone";
+  } else {
+    muteButton.textContent = "Unmute Microphone";
+  }
+};
+
+// 5. Mute the remote user's audio
+muteRemoteButton.onclick = () => {
+  // Toggle the audio track from the remote stream
+  remoteStream.getAudioTracks().forEach(track => {
+    track.enabled = !track.enabled;
+  });
+
+  // Change the button text to reflect the mute state
+  if (remoteStream.getAudioTracks()[0].enabled) {
+    muteRemoteButton.textContent = "Mute Remote Audio";
+  } else {
+    muteRemoteButton.textContent = "Unmute Remote Audio";
+  }
+};
+
+// 6. Display connection status
+pc.oniceconnectionstatechange = () => {
+  switch (pc.iceConnectionState) {
+    case 'connected':
+      statusMessage.textContent = "Status: Connected to the other player!";
+      break;
+    case 'disconnected':
+      statusMessage.textContent = "Status: Connection lost!";
+      break;
+    case 'failed':
+      statusMessage.textContent = "Status: Connection failed!";
+      break;
+    default:
+      statusMessage.textContent = "Status: Waiting for connection...";
+  }
 };
