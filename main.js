@@ -1,7 +1,7 @@
 // Firebase modular imports
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, addDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
-
+import { setDoc } from 'firebase/firestore';
 const firebaseConfig = {
   apiKey: "AIzaSyAMdzPP6YZPwxVYlyIXJmn8Bpv1boEK4zY",
   authDomain: "tictactoe-79830.firebaseapp.com",
