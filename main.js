@@ -29,7 +29,7 @@ const servers = {
 // Global State
 const pc = new RTCPeerConnection(servers);
 let localStream = null;
-let remoteStream = null;
+let remoteStream = new MediaStream();
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
@@ -43,77 +43,85 @@ const statusMessage = document.getElementById('statusMessage'); // Element for s
 
 // 1. Setup media sources (audio only)
 webcamButton.onclick = async () => {
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); // Only audio
-  remoteStream = new MediaStream();
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); // Only audio
+    console.log('Local stream obtained:', localStream);
 
-  // Push tracks from local stream to peer connection
-  localStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localStream);
-  });
-
-  // Pull tracks from remote stream (only audio) and add to the connection
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteStream.addTrack(track);
+    // Push tracks from local stream to peer connection
+    localStream.getTracks().forEach((track) => {
+      pc.addTrack(track, localStream);
     });
-  };
 
-  // No need for video elements, as we are using audio only
-  // webcamVideo.srcObject = localStream;
-  // remoteVideo.srcObject = remoteStream;
+    // Pull tracks from remote stream (only audio) and add to the connection
+    pc.ontrack = (event) => {
+      console.log('Remote track received:', event.streams[0]);
+      event.streams[0].getTracks().forEach((track) => {
+        remoteStream.addTrack(track);
+      });
+    };
 
-  callButton.disabled = false;
-  answerButton.disabled = false;
-  webcamButton.disabled = true;
+    // No need for video elements, as we are using audio only
+    // webcamVideo.srcObject = localStream;
+    // remoteVideo.srcObject = remoteStream;
+
+    callButton.disabled = false;
+    answerButton.disabled = false;
+    webcamButton.disabled = true;
+  } catch (error) {
+    console.error('Error accessing media devices:', error);
+  }
 };
 
 // 2. Create an offer
 callButton.onclick = async () => {
-  // Reference Firestore collections for signaling
-  const callDoc = doc(collection(firestore, 'calls'));
-  const offerCandidates = collection(callDoc, 'offerCandidates');
-  const answerCandidates = collection(callDoc, 'answerCandidates');
+  try {
+    const callDoc = doc(collection(firestore, 'calls'));
+    const offerCandidates = collection(callDoc, 'offerCandidates');
+    const answerCandidates = collection(callDoc, 'answerCandidates');
 
-  callInput.value = callDoc.id;
+    callInput.value = callDoc.id;
 
-  // Get candidates for caller, save to db
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      addDoc(offerCandidates, event.candidate.toJSON());
-    }
-  };
+    // Get candidates for caller, save to db
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        addDoc(offerCandidates, event.candidate.toJSON());
+      }
+    };
 
-  // Create offer
-  const offerDescription = await pc.createOffer();
-  await pc.setLocalDescription(offerDescription);
+    // Create offer
+    const offerDescription = await pc.createOffer();
+    await pc.setLocalDescription(offerDescription);
 
-  const offer = {
-    sdp: offerDescription.sdp,
-    type: offerDescription.type,
-  };
+    const offer = {
+      sdp: offerDescription.sdp,
+      type: offerDescription.type,
+    };
 
-  await setDoc(callDoc, { offer });
+    await setDoc(callDoc, { offer });
 
-  // Listen for remote answer
-  onSnapshot(callDoc, (snapshot) => {
-    const data = snapshot.data();
-    if (!pc.currentRemoteDescription && data?.answer) {
-      const answerDescription = new RTCSessionDescription(data.answer);
-      pc.setRemoteDescription(answerDescription);
-    }
-  });
-
-  // When answered, add candidate to peer connection
-  onSnapshot(answerCandidates, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        const candidate = new RTCIceCandidate(change.doc.data());
-        pc.addIceCandidate(candidate);
+    // Listen for remote answer
+    onSnapshot(callDoc, (snapshot) => {
+      const data = snapshot.data();
+      if (!pc.currentRemoteDescription && data?.answer) {
+        const answerDescription = new RTCSessionDescription(data.answer);
+        pc.setRemoteDescription(answerDescription);
       }
     });
-  });
 
-  hangupButton.disabled = false;
+    // When answered, add candidate to peer connection
+    onSnapshot(answerCandidates, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const candidate = new RTCIceCandidate(change.doc.data());
+          pc.addIceCandidate(candidate);
+        }
+      });
+    });
+
+    hangupButton.disabled = false;
+  } catch (error) {
+    console.error('Error creating offer:', error);
+  }
 };
 
 // 3. Answer the call with the unique ID
@@ -123,45 +131,46 @@ answerButton.onclick = async () => {
   const answerCandidates = collection(callDoc, 'answerCandidates');
   const offerCandidates = collection(callDoc, 'offerCandidates');
 
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      addDoc(answerCandidates, event.candidate.toJSON());
-    }
-  };
-
-  const callData = (await getDoc(callDoc)).data();
-
-  const offerDescription = callData.offer;
-  await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
-
-  const answerDescription = await pc.createAnswer();
-  await pc.setLocalDescription(answerDescription);
-
-  const answer = {
-    type: answerDescription.type,
-    sdp: answerDescription.sdp,
-  };
-
-  await updateDoc(callDoc, { answer });
-
-  onSnapshot(offerCandidates, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        let data = change.doc.data();
-        pc.addIceCandidate(new RTCIceCandidate(data));
+  try {
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        addDoc(answerCandidates, event.candidate.toJSON());
       }
+    };
+
+    const callData = (await getDoc(callDoc)).data();
+    const offerDescription = callData.offer;
+    await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
+    const answerDescription = await pc.createAnswer();
+    await pc.setLocalDescription(answerDescription);
+
+    const answer = {
+      type: answerDescription.type,
+      sdp: answerDescription.sdp,
+    };
+
+    await updateDoc(callDoc, { answer });
+
+    onSnapshot(offerCandidates, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          let data = change.doc.data();
+          pc.addIceCandidate(new RTCIceCandidate(data));
+        }
+      });
     });
-  });
+  } catch (error) {
+    console.error('Error answering call:', error);
+  }
 };
 
 // 4. Mute the local microphone
 muteButton.onclick = () => {
-  // Toggle the enabled state of the audio track
   localStream.getAudioTracks().forEach(track => {
     track.enabled = !track.enabled;
   });
 
-  // Change the button text to reflect the mute state
   if (localStream.getAudioTracks()[0].enabled) {
     muteButton.textContent = "Mute Microphone";
   } else {
@@ -171,12 +180,10 @@ muteButton.onclick = () => {
 
 // 5. Mute the remote user's audio
 muteRemoteButton.onclick = () => {
-  // Toggle the audio track from the remote stream
   remoteStream.getAudioTracks().forEach(track => {
     track.enabled = !track.enabled;
   });
 
-  // Change the button text to reflect the mute state
   if (remoteStream.getAudioTracks()[0].enabled) {
     muteRemoteButton.textContent = "Mute Remote Audio";
   } else {
