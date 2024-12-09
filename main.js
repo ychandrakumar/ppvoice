@@ -1,5 +1,6 @@
 // Firebase modular imports
 import { initializeApp } from 'firebase/app';
+import { setDoc } from 'firebase/firestore';
 import { getFirestore, collection, doc, addDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
