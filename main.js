@@ -19,7 +19,9 @@ const firestore = getFirestore(app);
 
 const servers = {
   iceServers: [
-    { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+    {
+      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -31,24 +33,23 @@ let remoteStream = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
+const webcamVideo = document.getElementById('webcamVideo');
 const callButton = document.getElementById('callButton');
 const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
+const remoteVideo = document.getElementById('remoteVideo');
 const hangupButton = document.getElementById('hangupButton');
-const muteButton = document.getElementById('muteButton');
-const muteRemoteButton = document.getElementById('muteRemoteButton');
-const statusMessage = document.getElementById('statusMessage');
+
+// Mute buttons
+const muteButton = document.getElementById('muteButton'); // Mute local microphone
+const muteRemoteButton = document.getElementById('muteRemoteButton'); // Mute incoming audio
+
+let isLocalMuted = false; // Track local mute state
+let isRemoteMuted = false; // Track remote mute state
 
 // 1. Setup media sources
 webcamButton.onclick = async () => {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true, // Enable echo cancellation
-      noiseSuppression: true,  // Enable noise suppression
-      autoGainControl: true,   // Enable auto gain control
-    }
-  });
-
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   remoteStream = new MediaStream();
 
   // Push tracks from local stream to peer connection
@@ -63,6 +64,9 @@ webcamButton.onclick = async () => {
     });
   };
 
+  webcamVideo.srcObject = localStream;
+  remoteVideo.srcObject = remoteStream;
+
   callButton.disabled = false;
   answerButton.disabled = false;
   webcamButton.disabled = true;
@@ -70,6 +74,7 @@ webcamButton.onclick = async () => {
 
 // 2. Create an offer
 callButton.onclick = async () => {
+  // Reference Firestore collections for signaling
   const callDoc = doc(collection(firestore, 'calls'));
   const offerCandidates = collection(callDoc, 'offerCandidates');
   const answerCandidates = collection(callDoc, 'answerCandidates');
@@ -83,6 +88,7 @@ callButton.onclick = async () => {
     }
   };
 
+  // Create offer
   const offerDescription = await pc.createOffer();
   await pc.setLocalDescription(offerDescription);
 
@@ -102,6 +108,7 @@ callButton.onclick = async () => {
     }
   });
 
+  // When answered, add candidate to peer connection
   onSnapshot(answerCandidates, (snapshot) => {
     snapshot.docChanges().forEach((change) => {
       if (change.type === 'added') {
@@ -152,36 +159,20 @@ answerButton.onclick = async () => {
   });
 };
 
-// Mute microphone functionality
+// 4. Mute Local Audio (Microphone)
 muteButton.onclick = () => {
-  const audioTrack = localStream.getAudioTracks()[0];
-  if (audioTrack.enabled) {
-    audioTrack.enabled = false;
-    muteButton.textContent = 'Unmute Microphone';
-  } else {
-    audioTrack.enabled = true;
-    muteButton.textContent = 'Mute Microphone';
-  }
+  isLocalMuted = !isLocalMuted;
+  localStream.getAudioTracks().forEach((track) => {
+    track.enabled = !isLocalMuted; // Mute/unmute the local track
+  });
+  muteButton.textContent = isLocalMuted ? 'Unmute Microphone' : 'Mute Microphone'; // Update button text
 };
 
-// Mute remote audio functionality
+// 5. Mute Remote Audio (Incoming Audio)
 muteRemoteButton.onclick = () => {
-  const remoteAudioTrack = remoteStream.getAudioTracks()[0];
-  if (remoteAudioTrack.enabled) {
-    remoteAudioTrack.enabled = false;
-    muteRemoteButton.textContent = 'Unmute Remote Audio';
-  } else {
-    remoteAudioTrack.enabled = true;
-    muteRemoteButton.textContent = 'Mute Remote Audio';
-  }
-};
-
-// Hangup functionality
-hangupButton.onclick = () => {
-  pc.close();
-  pc.onicecandidate = null;
-  localStream.getTracks().forEach(track => track.stop());
-  remoteStream.getTracks().forEach(track => track.stop());
-  hangupButton.disabled = true;
-  statusMessage.textContent = 'Status: Call ended';
+  isRemoteMuted = !isRemoteMuted;
+  remoteStream.getAudioTracks().forEach((track) => {
+    track.enabled = !isRemoteMuted; // Mute/unmute the remote track
+  });
+  muteRemoteButton.textContent = isRemoteMuted ? 'Unmute Remote Audio' : 'Mute Remote Audio'; // Update button text
 };
