@@ -33,16 +33,14 @@ let remoteStream = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
-const webcamVideo = document.getElementById('webcamVideo');
 const callButton = document.getElementById('callButton');
 const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
-const remoteVideo = document.getElementById('remoteVideo');
 const hangupButton = document.getElementById('hangupButton');
 
-// 1. Setup media sources
+// 1. Setup media sources (audio only)
 webcamButton.onclick = async () => {
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); // Only audio
   remoteStream = new MediaStream();
 
   // Push tracks from local stream to peer connection
@@ -50,15 +48,16 @@ webcamButton.onclick = async () => {
     pc.addTrack(track, localStream);
   });
 
-  // Pull tracks from remote stream, add to video stream
+  // Pull tracks from remote stream (only audio) and add to the connection
   pc.ontrack = (event) => {
     event.streams[0].getTracks().forEach((track) => {
       remoteStream.addTrack(track);
     });
   };
 
-  webcamVideo.srcObject = localStream;
-  remoteVideo.srcObject = remoteStream;
+  // No need for video elements, as we are using audio only
+  // webcamVideo.srcObject = localStream;
+  // remoteVideo.srcObject = remoteStream;
 
   callButton.disabled = false;
   answerButton.disabled = false;
